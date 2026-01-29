@@ -3,10 +3,9 @@ version: '3.8'
 services:
   go-wxpush:
     container_name: go-wxpush
-    # Build from current directory
-    build: .
-    # Or use the image directly:
-    # image: hezhizheng/go-wxpush:latest
+    # Use the pre-built image from GitHub Container Registry
+    image: ghcr.io/deadbeeeef/go-wxpush:latest
+    # build: .  <-- Commented out to use remote image by default
     ports:
       - "5566:5566"
     restart: unless-stopped

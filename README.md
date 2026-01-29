@@ -97,13 +97,13 @@ docker run -it -d -p 5566:5566 --init --name go-wxpush4 hezhizheng/go-wxpush:v4 
 
 1. 确保已安装 Docker Compose。
 2. 修改 `config.yml` (可选，或直接使用默认配置)。
-3. 在项目根目录执行：
+3. 在项目根目录执行（默认使用 `ghcr.io` 最新镜像）：
 
 ```bash
 docker-compose up -d
 ```
 
-4. 这里的配置会默认挂载当前目录下的 `config.yml`，如有修改请重启容器生效。
+1. 这里的配置会默认挂载当前目录下的 `config.yml`，如有修改请重启容器生效。
 
 ## 💬 默认消息详情页
 
