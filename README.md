@@ -14,7 +14,9 @@
 ✅ 真正的微信原生弹窗 + 声音提醒  
 ✅ 支持多用户  
 ✅ 提供免费服务[https://push.hzz.cool](https://push.hzz.cool)（请勿滥用）  
-✅ 跳转稳定，自带消息详情页面 (默认使用[https://push.hzz.cool/detail](https://push.hzz.cool/detail), 可自己部署后使用参数替换)  
+✅ **智能跳转链接**: 默认自动检测本机内网IP作为跳转链接，外网或失败时回退到 [push.hzz.cool](https://push.hzz.cool)  
+✅ **全新 Web 界面**: 极简设计，默认开启发送消息面板，支持可视化配置管理  
+✅ **精美详情页**: 内置现代 Minimalist 风格的消息详情页，支持 Markdown 渲染  
 ✅ 可无限换皮肤 (使用项目[wxpushSkin](https://github.com/frankiejun/wxpushSkin))  感谢 [frankiejun/wxpush](https://github.com/frankiejun/wxpush)
 
 ## ⚠️ 部署条件
@@ -22,24 +24,24 @@
 1. [微信公众平台接口测试帐号申请](https://mp.weixin.qq.com/debug/cgi-bin/sandbox?t=sandbox/login)  
 
    ![wx1.png](img/wx1.png)
-3. 获取appid 、appsecret  
+2. 获取appid 、appsecret  
 
    ![wx2.png](https://s2.loli.net/2026/01/23/cfzjWdlpVDPyECu.png)
-5. 关注测试公众号，获取userid(微信号)，新增测试模板，获取template_id(模板ID)(<mark> 注意模版内容填写格式 `内容: {{content.DATA}}` , 不要仅填写`{{content.DATA}}` 前面随便加一点其他文案，不然推送会不显示内容！！！  <mark>)  
+3. 关注测试公众号，获取userid(微信号)，新增测试模板，获取template_id(模板ID)(<mark> 注意模版内容填写格式 `内容: {{content.DATA}}` , 不要仅填写`{{content.DATA}}` 前面随便加一点其他文案，不然推送会不显示内容！！！  <mark>)  
 
    ![wx3.png](img/wx3.png)
-7. 将以上获取到的参数代入下面使用即可  
+4. 将以上获取到的参数代入下面使用即可  
 
    ![wx3.png](img/w0.jpg)
    ![wx3.png](img/w1.jpg)
-   
+
 ## 🚀 部署指南
 
 ### [下载编译好的文件启动](https://github.com/hezhizheng/go-wxpush/releases/)
 
 - 启动参数
-    * 命令行启动参数(可不加，启动之后直接在url上拼接参数也可)  `./go-wxpush_windows_amd64.exe -port "5566" -title "测试标题" -content "测试内容" -appid "xxx" -secret "xxx" -userid "xxx-k08" -template_id "xxx-Ks_PwGm--GSzllU" -base_url "https://push.hzz.cool"`
-    *  url请求参数(get)  `与命令行参数名称一致` `/wxsend?appid=xxx&secret=xxx&userid=xxx-k08&template_id=xxx-Ks_PwGm--GSzllU&base_url=https://push.hzz.cool&content=保持微笑，代码无 bug！`
+  - 命令行启动参数(可不加，启动之后直接在url上拼接参数也可)  `./go-wxpush_windows_amd64.exe -port "5566" -title "测试标题" -content "测试内容" -appid "xxx" -secret "xxx" -userid "xxx-k08" -template_id "xxx-Ks_PwGm--GSzllU" -base_url "https://push.hzz.cool"`
+  - url请求参数(get)  `与命令行参数名称一致` `/wxsend?appid=xxx&secret=xxx&userid=xxx-k08&template_id=xxx-Ks_PwGm--GSzllU&base_url=https://push.hzz.cool&content=保持微笑，代码无 bug！`
 
 ### 自行编译可执行文件(跨平台)
 
@@ -53,12 +55,16 @@ gox -osarch="linux/arm64" -ldflags "-s -w" -gcflags="all=-trimpath=${PWD}" -asmf
 ```
 
 ### 🐳 Docker 启动
+
 - 将编译好的文件放在与 Dockerfile 同目录
 - 构建镜像
+
 ```
 docker build -t go-wxpush:v2 .
 ```
+
 - 启动镜像，参数与命令行保持一致
+
 ```
 docker run -d -p 5566:5566 --name go-wxpush0 go-wxpush:v2 \
 -port "5566" \
@@ -71,6 +77,7 @@ docker run -d -p 5566:5566 --name go-wxpush0 go-wxpush:v2 \
 ```
 
 ### 🐳 Docker 一键部署
+
 ```
 # 重新部署请先拉一遍最新的镜像
 docker pull hezhizheng/go-wxpush:v4
@@ -88,8 +95,11 @@ docker run -it -d -p 5566:5566 --init --name go-wxpush4 hezhizheng/go-wxpush:v4 
 
 ## 💬 默认消息详情页
 
-服务启动成功后会自带消息详情页界面(即消息模板跳转的页面)，访问地址 `http://127.0.0.1:5566/detail` ，如有公网地址，可设置base_url参数为对应的host即可(无需加/detail)。
-![wx3.png](img/msg.png)
+服务启动成功后会自带消息详情页界面 `http://127.0.0.1:5566/detail`。
+- **智能 Base URL**: 如果配置中 `base_url` 为空，程序会自动获取本机局域网 IP (例如 `http://192.168.1.5:5566`) 生成跳转链接，方便手机在同一 Wi-Fi 下直接访问。
+- **全新设计**: 采用现代 Minimalist 设计风格，白色卡片搭配灰色背景，阅读体验更佳。
+
+![msg.png](img/msg.png)
 
 ## ⚙️ API 使用方法
 

@@ -1,0 +1,9 @@
+title: wx-push
+content: test
+appid: your_appid_here
+secret: your_secret_here
+userid: your_openid_here
+template_id: your_template_id_here
+base_url: ""
+tz: "Asia/Shanghai"
+port: "5566"

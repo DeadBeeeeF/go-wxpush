@@ -6,12 +6,19 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 	_ "time/tzdata"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"gopkg.in/yaml.v3"
 )
 
 // 请求参数结构体
@@ -26,17 +33,9 @@ type RequestParams struct {
 	Timezone   string `json:"tz" form:"tz"`
 }
 
-// 全局变量用于存储命令行参数
+// 全局变量用于存储命令配置
 var (
-	cliTitle      string
-	cliContent    string
-	cliAppID      string
-	cliSecret     string
-	cliUserID     string
-	cliTemplateID string
-	cliBaseURL    string
-	startPort     string
-	cliTimezone   string
+	appConfig *Config
 )
 
 // 微信AccessToken响应
@@ -60,6 +59,26 @@ type WechatAPIResponse struct {
 }
 
 func main() {
+	// 加载配置文件
+	cfg, err := LoadConfig("config.yml")
+	if err != nil {
+		fmt.Printf("Warning: Failed to load config.yml: %v. Using defaults.\n", err)
+	}
+	appConfig = cfg
+
+	// 定义命令行参数变量
+	var (
+		cliTitle      string
+		cliContent    string
+		cliAppID      string
+		cliSecret     string
+		cliUserID     string
+		cliTemplateID string
+		cliBaseURL    string
+		cliTimezone   string
+		cliPort       string
+	)
+
 	// 定义命令行参数
 	flag.StringVar(&cliTitle, "title", "", "消息标题")
 	flag.StringVar(&cliContent, "content", "", "消息内容")
@@ -68,29 +87,52 @@ func main() {
 	flag.StringVar(&cliUserID, "userid", "", "openid")
 	flag.StringVar(&cliTemplateID, "template_id", "", "模板ID")
 	flag.StringVar(&cliBaseURL, "base_url", "", "跳转url")
-	flag.StringVar(&cliTimezone, "tz", "Asia/Shanghai", "时区，默认东八区")
-	flag.StringVar(&startPort, "port", "", "端口")
+	flag.StringVar(&cliTimezone, "tz", "", "时区，默认东八区")
+	flag.StringVar(&cliPort, "port", "", "端口")
 
 	// 解析命令行参数
 	flag.Parse()
 
+	// 命令行参数覆盖配置文件
+	if cliTitle != "" {
+		appConfig.Title = cliTitle
+	}
+	if cliContent != "" {
+		appConfig.Content = cliContent
+	}
+	if cliAppID != "" {
+		appConfig.AppID = cliAppID
+	}
+	if cliSecret != "" {
+		appConfig.Secret = cliSecret
+	}
+	if cliUserID != "" {
+		appConfig.UserID = cliUserID
+	}
+	if cliTemplateID != "" {
+		appConfig.TemplateID = cliTemplateID
+	}
+	if cliBaseURL != "" {
+		appConfig.BaseURL = cliBaseURL
+	}
+	if cliTimezone != "" {
+		appConfig.Timezone = cliTimezone
+	}
+	if cliPort != "" {
+		appConfig.Port = cliPort
+	}
+
 	// 设置路由
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `go-wxpush is running...✅`)
-	})
+	http.HandleFunc("/", handleIndex)
+	http.HandleFunc("/config", handleGetConfig)
+	http.HandleFunc("/config/save", handleConfigSave)
 	http.HandleFunc("/wxsend", handleWxSend)
 	http.HandleFunc("/detail", handleDetail)
 
 	// 启动服务器
-	//fmt.Println("Server is running on port 5566...")
-	port := "5566"
-	if startPort != "" {
-		port = startPort
-	}
-	fmt.Println("Server is running on： " + "http://127.0.0.1:" + port)
+	fmt.Println("Server is running on： " + "http://127.0.0.1:" + appConfig.Port)
 
-	err := http.ListenAndServe(":"+port, nil)
+	err = http.ListenAndServe(":"+appConfig.Port, nil)
 
 	if err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
@@ -100,24 +142,117 @@ func main() {
 
 // 嵌入静态HTML文件
 //
-//go:embed msg_detail.html
+//go:embed msg_detail.html index.html
 var htmlContent embed.FS
 
-// 处理详情页面请求
-func handleDetail(w http.ResponseWriter, r *http.Request) {
-	// 从嵌入的资源中读取HTML内容
-	htmlData, err := htmlContent.ReadFile("msg_detail.html")
+// 处理首页（配置页）
+func handleIndex(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	htmlData, err := htmlContent.ReadFile("index.html")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, `{"error": "Failed to read embedded HTML file: %v"}`, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(htmlData)
+}
+
+// 获取配置
+func handleGetConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(appConfig)
+}
+
+// 保存配置
+func handleConfigSave(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var newConfig Config
+	if err := json.NewDecoder(r.Body).Decode(&newConfig); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Update global config (partial update or full? Here we assume full from UI)
+	// Ideally we should lock if concurrent access is an issue, but for simple app it's fine.
+	*appConfig = newConfig
+
+	// Marshaling to YAML and saving to file
+	data, err := yaml.Marshal(&newConfig)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.WriteFile("config.yml", data, 0644); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Config saved"))
+}
+
+// 页面数据结构
+type PageData struct {
+	Title  string
+	Result template.HTML // 预渲染的HTML内容
+	Date   string
+}
+
+// 处理详情页面请求
+func handleDetail(w http.ResponseWriter, r *http.Request) {
+	// 解析 Query 参数
+	title := r.URL.Query().Get("title")
+	message := r.URL.Query().Get("message")
+	date := r.URL.Query().Get("date")
+
+	if title == "" {
+		title = "消息推送"
+	}
+	if message == "" {
+		message = "无告警信息"
+	}
+	if date == "" {
+		date = "无时间信息"
+	}
+
+	// 使用 Goldmark 渲染 Markdown
+	var buf strings.Builder
+	md := goldmark.New(goldmark.WithExtensions(extension.GFM))
+	if err := md.Convert([]byte(message), &buf); err != nil {
+		fmt.Printf("Markdown conversion failed: %v\n", err)
+		buf.WriteString(message) // Fallback to raw text
+	}
+
+	data := PageData{
+		Title:  title,
+		Result: template.HTML(buf.String()),
+		Date:   date,
+	}
+
+	// 解析模板
+	tmpl, err := template.ParseFS(htmlContent, "msg_detail.html")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, `{"error": "Failed to parse template: %v"}`, err)
 		return
 	}
 
 	// 设置响应头
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	// 返回HTML内容
-	w.Write(htmlData)
+	// 执行模板
+	if err := tmpl.Execute(w, data); err != nil {
+		fmt.Printf("Template execution failed: %v\n", err)
+	}
 }
 
 func handleWxSend(w http.ResponseWriter, r *http.Request) {
@@ -151,30 +286,30 @@ func handleWxSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 只有当GET/POST参数为空时，才使用命令行参数
-	if params.Title == "" && cliTitle != "" {
-		params.Title = cliTitle
+	// 使用全局配置填充缺失的参数
+	if params.Title == "" {
+		params.Title = appConfig.Title
 	}
-	if params.Content == "" && cliContent != "" {
-		params.Content = cliContent
+	if params.Content == "" {
+		params.Content = appConfig.Content
 	}
-	if params.AppID == "" && cliAppID != "" {
-		params.AppID = cliAppID
+	if params.AppID == "" {
+		params.AppID = appConfig.AppID
 	}
-	if params.Secret == "" && cliSecret != "" {
-		params.Secret = cliSecret
+	if params.Secret == "" {
+		params.Secret = appConfig.Secret
 	}
-	if params.UserID == "" && cliUserID != "" {
-		params.UserID = cliUserID
+	if params.UserID == "" {
+		params.UserID = appConfig.UserID
 	}
-	if params.TemplateID == "" && cliTemplateID != "" {
-		params.TemplateID = cliTemplateID
+	if params.TemplateID == "" {
+		params.TemplateID = appConfig.TemplateID
 	}
-	if params.BaseURL == "" && cliBaseURL != "" {
-		params.BaseURL = cliBaseURL
+	if params.BaseURL == "" {
+		params.BaseURL = appConfig.BaseURL
 	}
-	if params.Timezone == "" && cliTimezone != "" {
-		params.Timezone = cliTimezone
+	if params.Timezone == "" {
+		params.Timezone = appConfig.Timezone
 	}
 
 	// 验证必要参数
@@ -184,7 +319,17 @@ func handleWxSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if params.BaseURL == "" {
-		params.BaseURL = "https://push.hzz.cool"
+		// 尝试获取本机IP
+		localIP, err := getLocalIP()
+		port := appConfig.Port
+		if port == "" {
+			port = "5566"
+		}
+		if err == nil {
+			params.BaseURL = "http://" + localIP + ":" + port
+		} else {
+			params.BaseURL = "https://push.hzz.cool"
+		}
 	}
 	if params.Content == "" {
 		params.Content = "测试内容"
@@ -342,4 +487,21 @@ func sendTemplateMessage(accessToken string, params RequestParams) (WechatAPIRes
 	}
 
 	return apiResp, nil
+}
+
+// 获取本机内网IP
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+	for _, address := range addrs {
+		// 检查ip地址判断是否回环地址
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("local IP not found")
 }

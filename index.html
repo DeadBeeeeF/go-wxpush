@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go-WxPush 配置管理</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input[type="text"],
+        input[type="url"],
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+
+        button {
+            background-color: #00b900;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #009900;
+        }
+
+        .message {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .settings-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 5px;
+            color: #555;
+            transition: transform 0.3s;
+        }
+
+        .settings-btn:hover {
+            transform: rotate(90deg);
+            color: #00b900;
+            background: none;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 600px;
+            position: relative;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .close-btn {
+            position: absolute;
+            right: 20px;
+            top: 15px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #aaa;
+        }
+
+        .close-btn:hover {
+            color: #000;
+        }
+
+        /* Form adjustments */
+        .form-group label {
+            font-size: 14px;
+        }
+
+        .note {
+            font-size: 0.85em;
+            color: #777;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Go-WxPush</h1>
+            <button class="settings-btn" onclick="openModal()" title="设置">⚙️</button>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <!-- Send Message Form (Default View) -->
+        <div id="send-view">
+            <form id="sendForm">
+                <div class="form-group">
+                    <label for="send_title">消息标题</label>
+                    <input type="text" id="send_title" name="title" placeholder="请输入标题" required>
+                </div>
+                <div class="form-group">
+                    <label for="send_content">消息内容</label>
+                    <textarea id="send_content" name="content" placeholder="请输入内容" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="send_userid">接收者 OpenID (可选)</label>
+                    <input type="text" id="send_userid" name="userid" placeholder="为空则使用配置默认值">
+                </div>
+                <button type="submit" style="width: 100%; margin-top: 10px;">发送消息</button>
+                <div class="note">注：未填写的字段将使用配置中的默认值。</div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Configuration Modal -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:20px;">配置管理</h2>
+            <form id="configForm">
+                <div class="form-group">
+                    <label for="title">默认消息标题 (Title)</label>
+                    <input type="text" id="title" name="title" placeholder="请输入标题">
+                </div>
+                <div class="form-group">
+                    <label for="content">默认消息内容 (Content)</label>
+                    <input type="text" id="content" name="content" placeholder="请输入内容">
+                </div>
+                <div class="form-group">
+                    <label for="appid">AppID</label>
+                    <input type="text" id="appid" name="appid" placeholder="微信公众号 AppID">
+                </div>
+                <div class="form-group">
+                    <label for="secret">AppSecret</label>
+                    <input type="text" id="secret" name="secret" placeholder="微信公众号 AppSecret">
+                </div>
+                <div class="form-group">
+                    <label for="userid">用户ID (OpenID)</label>
+                    <input type="text" id="userid" name="userid" placeholder="接收者 OpenID">
+                </div>
+                <div class="form-group">
+                    <label for="template_id">模板ID (Template ID)</label>
+                    <input type="text" id="template_id" name="template_id" placeholder="消息模板 ID">
+                </div>
+                <!-- Dynamic Base URL logic means this can be empty -->
+                <div class="form-group">
+                    <label for="base_url">跳转链接前缀 (Base URL)</label>
+                    <input type="url" id="base_url" name="base_url" placeholder="为空则自动检测本机IP">
+                </div>
+                <div class="form-group">
+                    <label for="tz">时区 (Timezone)</label>
+                    <input type="text" id="tz" name="tz" placeholder="例如: Asia/Shanghai">
+                </div>
+                <div class="form-group">
+                    <label for="port">服务端口 (Port)</label>
+                    <input type="text" id="port" name="port" placeholder="例如: 5566">
+                </div>
+                <button type="submit" style="width: 100%;">保存配置</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Modal Logic
+        const modal = document.getElementById('configModal');
+        function openModal() {
+            modal.style.display = 'block';
+        }
+        function closeModal() {
+            modal.style.display = 'none';
+        }
+        window.onclick = function (event) {
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+
+        // Load config on startup
+        fetch('/config')
+            .then(response => response.json())
+            .then(data => {
+                for (const key in data) {
+                    // Populate config form
+                    const el = document.getElementById(key);
+                    if (el) el.value = data[key];
+
+                    // Pre-fill send form defaults (optional)
+                    if (key === 'title') {
+                        const sendEl = document.getElementById('send_title');
+                        if (sendEl && !sendEl.value) sendEl.value = data[key];
+                    }
+                }
+            })
+            .catch(console.error);
+
+        // Save Config
+        document.getElementById('configForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+
+            fetch('/config/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+                .then(response => {
+                    if (response.ok) {
+                        showMessage('配置已保存 (需重启生效)', 'success');
+                        setTimeout(closeModal, 1500); // Auto close modal on success
+                    } else {
+                        response.text().then(text => showMessage('保存失败: ' + text, 'error'));
+                    }
+                })
+                .catch(err => showMessage('保存失败: ' + err, 'error'));
+        });
+
+        // Send Message
+        document.getElementById('sendForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {};
+            // Filter out empty values so backend uses defaults
+            formData.forEach((value, key) => {
+                if (value) data[key] = value;
+            });
+
+            const btn = e.target.querySelector('button');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '发送中...';
+
+            fetch('/wxsend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+                .then(async response => {
+                    const resData = await response.json();
+                    if (response.ok && resData.errcode === 0) {
+                        showMessage('发送成功!', 'success');
+                    } else {
+                        showMessage('发送失败: ' + (resData.errmsg || resData.error || '未知错误'), 'error');
+                    }
+                })
+                .catch(err => showMessage('发送失败: ' + err, 'error'))
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                });
+        });
+
+        function showMessage(text, type) {
+            const el = document.getElementById('message');
+            el.textContent = text;
+            el.className = 'message ' + type;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+    </script>
+</body>
+
+</html>
