@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  go-wxpush:
+    container_name: go-wxpush
+    # Build from current directory
+    build: .
+    # Or use the image directly:
+    # image: hezhizheng/go-wxpush:latest
+    ports:
+      - "5566:5566"
+    restart: unless-stopped
+    volumes:
+      # Map config file for easier configuration
+      - ./config.yml:/app/config.yml
+      # Map timezone info to ensure correct time
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=Asia/Shanghai

@@ -93,9 +93,22 @@ docker run -it -d -p 5566:5566 --init --name go-wxpush4 hezhizheng/go-wxpush:v4 
 -tz "Asia/Shanghai"
 ```
 
+### 🐳 Docker Compose 一键部署
+
+1. 确保已安装 Docker Compose。
+2. 修改 `config.yml` (可选，或直接使用默认配置)。
+3. 在项目根目录执行：
+
+```bash
+docker-compose up -d
+```
+
+4. 这里的配置会默认挂载当前目录下的 `config.yml`，如有修改请重启容器生效。
+
 ## 💬 默认消息详情页
 
 服务启动成功后会自带消息详情页界面 `http://127.0.0.1:5566/detail`。
+
 - **智能 Base URL**: 如果配置中 `base_url` 为空，程序会自动获取本机局域网 IP (例如 `http://192.168.1.5:5566`) 生成跳转链接，方便手机在同一 Wi-Fi 下直接访问。
 - **全新设计**: 采用现代 Minimalist 设计风格，白色卡片搭配灰色背景，阅读体验更佳。
 
